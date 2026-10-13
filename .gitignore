@@ -1,0 +1,21 @@
+
+# Python virtual environments
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+
+# Dataset
+MFNet_dataset/
+
+# Model checkpoints and weights
+checkpoints/
+*.pt
+*.pth
+
+# Cache files
+.cache/

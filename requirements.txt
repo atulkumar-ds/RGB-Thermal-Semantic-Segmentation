@@ -1,0 +1,8 @@
+# Install a CUDA-enabled PyTorch/torchvision build separately first (see README.md).
+# Deliberately excludes torch/torchvision so a generic pip install cannot replace
+# your CUDA-enabled GPU build with an incompatible/CPU build.
+numpy>=1.24
+Pillow>=9.5
+matplotlib>=3.7
+tqdm>=4.65
+kaggle>=1.5
