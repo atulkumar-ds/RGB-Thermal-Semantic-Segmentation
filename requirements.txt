@@ -1,8 +1,18 @@
-# Install a CUDA-enabled PyTorch/torchvision build separately first (see README.md).
-# Deliberately excludes torch/torchvision so a generic pip install cannot replace
-# your CUDA-enabled GPU build with an incompatible/CPU build.
+# RGB-Thermal Semantic Segmentation - Deployment & Inference Dependencies
+#
+# Streamlit Community Cloud runs in a CPU Linux environment and automatically installs
+# dependencies listed here.
+#
+# NOTE FOR LOCAL GPU TRAINING / CUDA USERS:
+# If you are developing locally with an NVIDIA GPU, install your CUDA-enabled PyTorch build
+# first (e.g. `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128`),
+# then run `pip install -r requirements.txt`. pip will detect the existing PyTorch installation
+# and skip reinstalling it.
+
+streamlit>=1.30.0
+torch>=2.0.0
+torchvision>=0.15.0
 numpy>=1.24
 Pillow>=9.5
 matplotlib>=3.7
 tqdm>=4.65
-kaggle>=1.5
