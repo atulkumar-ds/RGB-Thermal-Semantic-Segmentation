@@ -1,58 +1,127 @@
 # RGB–Thermal Multi-Spectral Semantic Segmentation
 
-A deep learning framework and interactive web application for multi-spectral urban scene semantic segmentation, combining visible **RGB** and **Thermal (Long-Wave Infrared / LWIR)** imagery using a **Pretrained Dual-Stream ResNet-18 Feature Pyramid with Multi-Scale Cross-Modal Attention Fusion (CMAF)**.
+A deep learning framework and production Streamlit web application for multi-spectral urban scene semantic segmentation, combining visible **RGB** and **Thermal (Long-Wave Infrared / LWIR)** imagery using a **Pretrained Dual-Stream ResNet-18 Feature Pyramid with Multi-Scale Cross-Modal Attention Fusion (CMAF)**.
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io)
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C.svg)](https://pytorch.org/)
-[![Dataset](https://img.shields.io/badge/Dataset-MFNet-brightgreen.svg)](https://www.kaggle.com/datasets/danialqashqai/mfnet-dataset)
-[![Validation mIoU](https://img.shields.io/badge/Validation%20mIoU-55.55%25-success.svg)](#6-evaluation-metrics--experimental-results)
-[![Parameters](https://img.shields.io/badge/Parameters-29.06M-orange.svg)](#3-model-architecture)
+[![Live Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://rgb-thermal-segmentation-atul.streamlit.app/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C.svg?logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.30%2B-FF4B4B.svg?logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![Dataset](https://img.shields.io/badge/Dataset-MFNet%20RGB--T-brightgreen.svg)](https://www.kaggle.com/datasets/danialqashqai/mfnet-dataset)
+[![Validation mIoU](https://img.shields.io/badge/Validation%20mIoU-55.55%25-success.svg)](#8-experimental-results--evaluation)
+[![Parameters](https://img.shields.io/badge/Parameters-29.06M-orange.svg)](#4-model-architecture)
 
----
-
-## 1. Project Overview
-
-Semantic segmentation is a foundational task for autonomous vehicles, advanced driver assistance systems (ADAS), and mobile robotics. Standard RGB cameras capture rich color, texture, and fine-grained geometry under favorable illumination. However, optical vision degrades severely in real-world driving environments due to **total darkness, direct oncoming headlight glare, harsh shadow occlusions, dense fog, and inclement weather**.
-
-Thermal (LWIR, $8–14\,\mu\text{m}$) cameras overcome these limitations by measuring radiating thermal energy rather than reflected visible light. Thermal imaging exposes high-contrast heat signatures for pedestrians, cyclists, and running vehicle engines even in pitch darkness or through blinding glare. However, thermal imagery lacks chromatic data and surface texture, making it difficult to delineate road markings, lane boundaries, and traffic signs.
-
-This project delivers an end-to-end engineering solution that fusions both modalities:
-1. **RGB Stream (3 channels):** Extracts fine texture, color distribution, and spatial contours.
-2. **Thermal Stream (1 channel):** Provides temperature gradients and sharp object silhouettes unaffected by ambient light.
-3. **Cross-Modal Attention Fusion (CMAF):** Dynamically gates and fuses features across 5 spatial scales via coupled channel- and spatial-attention gates.
-4. **Interactive Streamlit Deployment:** A production-ready web application supporting paired image uploads, single MFNet RGBA PNGs, preloaded demo scenes, and real-time CPU/GPU inference.
+> **Live Interactive Demo:** [https://rgb-thermal-segmentation-atul.streamlit.app/](https://rgb-thermal-segmentation-atul.streamlit.app/)  
+> Test paired RGB and thermal inputs, upload single MFNet 4-channel RGBA images, or evaluate preloaded daytime and nighttime driving scenes directly in your browser.
 
 ---
 
-## 2. Key Features
+## Table of Contents
 
-- **Pretrained Dual-Stream Encoders:** Parallel ResNet-18 backbones initialized with ImageNet weights. The thermal stream's initial convolution is adapted from 3 channels to 1 channel by averaging pretrained RGB kernels.
-- **5-Scale Cross-Modal Attention Fusion (CMAF):** Operates at every level of the feature pyramid (stem, 1/4, 1/8, 1/16, 1/32 scales):
-  - **Channel Gate:** Squeeze-and-excitation MLP modeling inter-modal dependencies.
-  - **Spatial Gate:** Joint average- and max-pooling filters localizing salient spatial features.
-  - **Residual Path:** Blends gated representations with a direct skip ($\text{Fused} + 0.5 \times [\text{RGB} + \text{Thermal}]$) preventing feature suppression during early training.
-- **U-Net Decoder with Regularization:** 4-stage decoder with bilinear upsampling, $1\times1$ projections, feature concatenation, `ConvNormAct` blocks (GroupNorm + SiLU), and spatial dropout ($p=0.10$).
-- **Differential Optimization:** AdamW optimizer utilizing $0.1\times$ learning rate ($3 \times 10^{-5}$) for pretrained encoders and $1.0\times$ ($3 \times 10^{-4}$) for fusion and decoder modules.
-- **Hybrid Objective Function:** Class-weighted Cross-Entropy loss combined with multi-class Soft Dice loss, strictly ignoring boundary index 255.
-- **Interactive Streamlit App:** Full interactive UI with opacity slider, customizable thermal colormaps, class breakdown analytics, and LFS-safe checkpoint retrieval.
-- **Zero-Leakage Dataset Audit:** Includes `audit_mfnet.py` to verify split separation, check label integrity, and prevent data leakage.
+- [1. Project Overview & Motivation](#1-project-overview--motivation)
+- [2. Key Technical Contributions](#2-key-technical-contributions)
+- [3. Interactive Streamlit Web Application](#3-interactive-streamlit-web-application)
+- [4. Model Architecture](#4-model-architecture)
+  - [4.1 Architecture Diagram](#41-architecture-diagram)
+  - [4.2 Cross-Modal Attention Fusion (CMAF)](#42-cross-modal-attention-fusion-cmaf)
+  - [4.3 Parameter Breakdown](#43-parameter-breakdown)
+- [5. Dataset & Preprocessing Pipeline](#5-dataset--preprocessing-pipeline)
+  - [5.1 MFNet Dataset Structure](#51-mfnet-dataset-structure)
+  - [5.2 Semantic Classes & Palette](#52-semantic-classes--palette)
+  - [5.3 Data Augmentation & Imbalance Handling](#53-data-augmentation--imbalance-handling)
+- [6. Training Methodology & Optimization](#6-training-methodology--optimization)
+- [7. Baseline vs. Pretrained ResNet-18 Comparison](#7-baseline-vs-pretrained-resnet-18-comparison)
+- [8. Experimental Results & Evaluation](#8-experimental-results--evaluation)
+  - [8.1 Class-Wise Performance](#81-class-wise-performance)
+  - [8.2 Checkpoint & Metric Verification](#82-checkpoint--metric-verification)
+- [9. Visualizations & Training Plots](#9-visualizations--training-plots)
+- [10. Repository Structure](#10-repository-structure)
+- [11. Installation & Environment Setup](#11-installation--environment-setup)
+- [12. Dataset Setup & Pre-Training Audit](#12-dataset-setup--pre-training-audit)
+- [13. Training & Reproduction Commands](#13-training--reproduction-commands)
+- [14. Local Streamlit App Execution](#14-local-streamlit-app-execution)
+- [15. Checkpoint & Git LFS Handling](#15-checkpoint--git-lfs-handling)
+- [16. Streamlit Community Cloud Deployment Guide](#16-streamlit-community-cloud-deployment-guide)
+- [17. Verification & Testing Suite](#17-verification--testing-suite)
+- [18. Limitations & Future Directions](#18-limitations--future-directions)
+- [19. References & Acknowledgements](#19-references--acknowledgements)
 
 ---
 
-## 3. Model Architecture
+## 1. Project Overview & Motivation
 
-The model (`CustomDualStreamUNet` in `my_model.py`, `ARCHITECTURE_ID = "resnet18_dual_stream_cross_modal_attention_v2_1"`) processes synchronized 4-channel inputs:
+Semantic scene parsing for autonomous vehicles and mobile robotics relies heavily on optical RGB cameras. However, standard 3-channel optical vision degrades significantly under challenging operating conditions:
+- **Low-light and night scenarios:** Insufficient ambient photons cause severe underexposure and loss of object contours.
+- **High-contrast glare:** Direct sunlight or oncoming high-beam headlamps saturate optical sensors.
+- **Adverse environmental factors:** Dense fog, dust, and heavy shadows obscure critical roadway boundaries.
+
+Thermal cameras operating in the Long-Wave Infrared spectrum (LWIR, $8–14\,\mu\text{m}$) detect radiating heat emitted by physical bodies, running vehicle engines, and friction surfaces. Because thermal sensors capture radiation rather than reflected light, pedestrians, cyclists, and moving vehicles remain distinctly visible through darkness, glare, and shadows. Nevertheless, thermal imagery lacks fine-grained chromatic and surface textural information, making it inadequate on its own for distinguishing lane markings, road signs, and asphalt boundaries.
+
+```
++-----------------------------------------------------------------------------------+
+| RGB Camera: High spatial resolution, color, fine texture | Fails in dark & glare  |
+| LWIR Thermal: Emitted heat radiation, invariant to light | Lacks color & texture  |
+|                                                                                   |
+| Cross-Modal Fusion: Complements optical texture with thermal radiation signatures |
++-----------------------------------------------------------------------------------+
+```
+
+This project designs, trains, audits, and deploys a **Pretrained Dual-Stream ResNet-18** segmentation network that unifies both modalities into a shared feature space.
+
+---
+
+## 2. Key Technical Contributions
+
+- **Dual-Stream Feature Pyramids:** Parallel ResNet-18 encoders initialized with ImageNet weights. The single-channel thermal stem is initialized by averaging the pretrained RGB first-layer convolution kernels, establishing a balanced initialization.
+- **Multi-Scale Cross-Modal Attention Fusion (CMAF):** Deployed across all 5 pyramid scales (stem, 1/4, 1/8, 1/16, 1/32). Integrates channel-level squeeze-and-excitation gating, joint spatial average/max pooling gates, and an additive residual connection ($\text{Fused} + 0.5 \times [\text{RGB} + \text{Thermal}]$) to protect raw modality features during early training.
+- **U-Net Style Decoder with Regularization:** 4-stage decoder using bilinear upsampling, $1\times1$ projections, feature concatenation, `ConvNormAct` blocks (GroupNorm + SiLU), spatial dropout ($p=0.10$), and bottleneck dropout ($p=0.15$).
+- **Differential Optimization:** AdamW optimizer with $0.1\times$ learning rate ($3 \times 10^{-5}$) for pretrained encoders and $1.0\times$ ($3 \times 10^{-4}$) for fusion blocks and decoder stages.
+- **Hybrid Objective Function:** Class-weighted Cross-Entropy loss combined with multi-class Soft Dice loss, strictly ignoring transition boundary index 255.
+- **Automated Dataset Auditing:** Built-in read-only sanity tool (`audit_mfnet.py`) verifying zero split leakage, mask label integrity, and thermal alpha channel statistics.
+- **Production Streamlit Application:** Interactive web interface with `@st.cache_resource` model caching, Git LFS pointer detection, automated remote weight downloading via secrets, opacity control, and thermal false-color mapping.
+
+---
+
+## 3. Interactive Streamlit Web Application
+
+The interactive web application is deployed on **Streamlit Community Cloud**:
+
+**Live URL:** [https://rgb-thermal-segmentation-atul.streamlit.app/](https://rgb-thermal-segmentation-atul.streamlit.app/)
+
+### Application Capabilities
+1. **Multi-Mode Input Support:**
+   - **Preloaded Demo Scenes:** Evaluate pre-registered validation scenes (Daytime Scene `00001D` and Nighttime Scene `00003N`) with 1 click.
+   - **Paired File Uploads:** Upload independent RGB and Thermal images. The application validates spatial dimension compatibility automatically.
+   - **MFNet 4-Channel RGBA Uploads:** Directly process native MFNet PNG files where thermal intensity is stored in the alpha channel.
+2. **Inference Pipeline:**
+   - Runs model in evaluation mode (`torch.no_grad()`) on CPU or CUDA.
+   - Normalizes inputs using the exact in-model parameters from training.
+   - Restores output predictions to the input resolution using **nearest-neighbor interpolation** to prevent the introduction of artificial class IDs.
+3. **Visualization & Analytics:**
+   - 4-panel visual breakdown: Original RGB, Thermal (with selectable palettes: Grayscale, Inferno, Magma, Plasma, Viridis), Predicted Semantic Mask, and Blended RGB Overlay.
+   - Configurable overlay opacity slider ($0.0$ to $1.0$).
+   - Quantitative class breakdown cards displaying pixel count and surface percentage for all detected classes.
+   - Export buttons for downloading predicted PNG masks and composite overlays.
+4. **Cloud-Resilient Weight Handling:**
+   - Detects Git LFS pointer text files (~130 bytes) and prevents `UnpicklingError` crashes.
+   - Automatically downloads full binary checkpoint weights (~349 MB) when configured with the `CHECKPOINT_URL` secret.
+
+---
+
+## 4. Model Architecture
+
+The active architecture (`CustomDualStreamUNet` in `my_model.py`, `ARCHITECTURE_ID = "resnet18_dual_stream_cross_modal_attention_v2_1"`) accepts synchronized 4-channel inputs of shape `[B, 4, 480, 640]`.
+
+### 4.1 Architecture Diagram
 
 ```mermaid
 flowchart TD
-    subgraph Inputs["4-Channel Synchronized Input [B, 4, 480, 640]"]
+    subgraph Input["Synchronized Input [B, 4, 480, 640]"]
         RGB["RGB Stream [B, 3, 480, 640]"]
         Thermal["Thermal Stream [B, 1, 480, 640]"]
     end
 
-    subgraph RGB_Pyramid["RGB ResNet-18 Encoder (ImageNet Pretrained)"]
-        R0["Stem Conv1+BN+ReLU (64 ch, 1/2)"]
+    subgraph RGB_Encoder["RGB ResNet-18 Encoder (ImageNet Pretrained)"]
+        R0["Stem Conv1 + BN + ReLU (64 ch, 1/2)"]
         R1["Layer 1 (64 ch, 1/4)"]
         R2["Layer 2 (128 ch, 1/8)"]
         R3["Layer 3 (256 ch, 1/16)"]
@@ -60,8 +129,8 @@ flowchart TD
         R0 --> R1 --> R2 --> R3 --> R4
     end
 
-    subgraph Thr_Pyramid["Thermal ResNet-18 Encoder (Stem Kernel-Adapted)"]
-        T0["Adapted Conv1+BN+ReLU (64 ch, 1/2)"]
+    subgraph Thermal_Encoder["Thermal ResNet-18 Encoder (Stem Adapted)"]
+        T0["Adapted Conv1 + BN + ReLU (64 ch, 1/2)"]
         T1["Layer 1 (64 ch, 1/4)"]
         T2["Layer 2 (128 ch, 1/8)"]
         T3["Layer 3 (256 ch, 1/16)"]
@@ -69,7 +138,7 @@ flowchart TD
         T0 --> T1 --> T2 --> T3 --> T4
     end
 
-    subgraph CMAF["Cross-Modal Attention Fusion (CMAF at 5 Scales)"]
+    subgraph CMAF_Modules["Cross-Modal Attention Fusion (CMAF at 5 Scales)"]
         F0["CMAF Stem (64 ch)"]
         F1["CMAF Stage 1 (64 ch)"]
         F2["CMAF Stage 2 (128 ch)"]
@@ -77,7 +146,7 @@ flowchart TD
         F4["CMAF Stage 4 (512 ch)"]
     end
 
-    subgraph Decoder["U-Net Decoder with Dropout"]
+    subgraph Decoder["U-Net Style Decoder with GroupNorm & Dropout"]
         D4["DecoderBlock 4 (512 + 256 -> 256)"]
         D3["DecoderBlock 3 (256 + 128 -> 128)"]
         D2["DecoderBlock 2 (128 + 64 -> 64)"]
@@ -95,129 +164,187 @@ flowchart TD
     R4 & T4 --> F4
 
     F4 --> D4
-    F3 -. Skip .-> D4
+    F3 -. Skip Connection .-> D4
     D4 --> D3
-    F2 -. Skip .-> D3
+    F2 -. Skip Connection .-> D3
     D3 --> D2
-    F1 -. Skip .-> D2
+    F1 -. Skip Connection .-> D2
     D2 --> D1
-    F0 -. Skip .-> D1
+    F0 -. Skip Connection .-> D1
     D1 --> Head
-    Head --> Out["Segmentation Logits [B, 9, 480, 640]"]
+    Head --> Output["Segmentation Logits [B, 9, 480, 640]"]
 ```
 
-### Module Parameter Breakdown
+### 4.2 Cross-Modal Attention Fusion (CMAF)
 
-Total Trainable Parameters: **29,055,739 (29.06 Million)**
+At each pyramid level $i$, intermediate feature representations $\mathbf{X}_{\text{rgb}}, \mathbf{X}_{\text{th}} \in \mathbb{R}^{C \times H \times W}$ are fused using coupled channel and spatial attention gates:
 
-| Submodule | Specification / Mechanism | Parameters | Trainable |
+1. **Channel Attention Gate:**
+   $$\mathbf{G}_c = \sigma\left(\mathbf{W}_2 \cdot \text{SiLU}\left(\mathbf{W}_1 \cdot \text{AdaptiveAvgPool}(\mathbf{X}_{\text{rgb}} \mathbin{\Vert} \mathbf{X}_{\text{th}})\right)\right) \in \mathbb{R}^{2C \times 1 \times 1}$$
+   The gate is split into modality-specific weights $\mathbf{g}_c^{\text{rgb}}, \mathbf{g}_c^{\text{th}} \in \mathbb{R}^{C \times 1 \times 1}$.
+
+2. **Spatial Attention Gate:**
+   Channel-wise mean and maximum feature projections across both modalities are concatenated into a 4-channel descriptor:
+   $$\mathbf{S} = \left[\text{mean}_c(\mathbf{X}_{\text{rgb}}) \mathbin{\Vert} \max_c(\mathbf{X}_{\text{rgb}}) \mathbin{\Vert} \text{mean}_c(\mathbf{X}_{\text{th}}) \mathbin{\Vert} \max_c(\mathbf{X}_{\text{th}})\right] \in \mathbb{R}^{4 \times H \times W}$$
+   $$\mathbf{g}_s^{\text{rgb}} \mathbin{\Vert} \mathbf{g}_s^{\text{th}} = \sigma\left(\text{Conv}_{7 \times 7}(\mathbf{S})\right) \in \mathbb{R}^{2 \times H \times W}$$
+
+3. **Feature Refinement & Residual Skip:**
+   $$\mathbf{X}_{\text{weighted}} = \left(\mathbf{X}_{\text{rgb}} \odot \mathbf{g}_c^{\text{rgb}} \odot \mathbf{g}_s^{\text{rgb}}\right) \mathbin{\Vert} \left(\mathbf{X}_{\text{th}} \odot \mathbf{g}_c^{\text{th}} \odot \mathbf{g}_s^{\text{th}}\right)$$
+   $$\mathbf{X}_{\text{fused}} = \text{Mix}(\mathbf{X}_{\text{weighted}}) + 0.5 \times (\mathbf{X}_{\text{rgb}} + \mathbf{X}_{\text{th}})$$
+
+The residual additive skip ensures gradients flow directly through the fusion blocks even if attention gates initialize near zero.
+
+### 4.3 Parameter Breakdown
+
+All parameter counts are programmatically verified from `my_model.py`:
+
+| Submodule | Specification | Parameter Count | Trainable |
 |:---|:---|:---:|:---:|
 | **RGB Encoder** | ResNet-18 (`torchvision.models.resnet18`, ImageNet weights) | 11,176,512 | Yes |
-| **Thermal Encoder** | ResNet-18 (Conv1 adapted from 3 channels to 1 channel via mean kernel) | 11,170,240 | Yes |
-| **CMAF (5 Scales)** | Channel Gate (SE MLP) + Spatial Gate ($7\times7$ Conv) + Residual Skip | 4,059,186 | Yes |
-| **U-Net Decoder** | 4 Blocks: Bilinear Upsample + $1\times1$ Projection + Concat + $2\times$ ConvNormAct | 2,612,224 | Yes |
-| **Segmentation Head** | ConvNormAct ($3\times3$, 64 ch) + Final $1\times1$ Conv ($64 \rightarrow 9$) | 37,577 | Yes |
+| **Thermal Encoder** | ResNet-18 (Conv1 converted $3 \rightarrow 1$ channel via mean kernel) | 11,170,240 | Yes |
+| **CMAF (5 Stages)** | 5 scales: 64, 64, 128, 256, 512 channels | 4,059,186 | Yes |
+| **U-Net Decoder** | 4 Blocks: $1\times1$ project + concat + $2\times$ `ConvNormAct` (GroupNorm + SiLU) | 2,612,224 | Yes |
+| **Segmentation Head** | `ConvNormAct` ($3\times3$, 64 ch) + Final $1\times1$ Conv ($64 \rightarrow 9$ classes) | 37,577 | Yes |
 | **Total Model** | **Dual-Stream ResNet-18 + CMAF + U-Net Decoder** | **29,055,739** | **100%** |
 
 ---
 
-## 4. Dataset Description & Class Mapping
+## 5. Dataset & Preprocessing Pipeline
 
-The model is trained on the benchmark **MFNet (Multi-Spectral Fusion Network)** urban driving dataset:
+### 5.1 MFNet Dataset Structure
+
+The network is trained and evaluated on the **MFNet (Multi-Spectral Fusion Network)** benchmark dataset:
 
 ```
 MFNet_dataset/
-├── images/       # 4-channel PNG files (channels 0:3 RGB, channel 3 Thermal), 640x480
-├── labels/       # Single-channel ground truth mask PNGs (pixel IDs 0-8, 255 ignored)
-├── train.txt     # Training split manifest (1,568 samples / 784 unique scenes)
-├── val.txt       # Validation split manifest (392 scenes)
+├── images/       # 4-channel RGBA PNG images (RGB in 0:3, Thermal in channel 3 / Alpha)
+├── labels/       # Single-channel ground truth mask PNGs (IDs 0..8, 255 ignored)
+├── train.txt     # Training split manifest
+├── val.txt       # Validation split manifest
 └── test.txt      # Test split manifest
 ```
 
-### Class Definitions & Verified MFNet Palette
+#### Dataset Inventory & Split Accounting
 
-| Class ID | Class Name | Description | RGB Color Code | Hex Swatch |
-|:---:|:---|:---|:---:|:---:|
-| `0` | **Unlabeled** | Background terrain, sky, unclassified pavement | `[0, 0, 0]` | `#000000` |
-| `1` | **Car** | Passenger cars, SUVs, vans, buses, trucks | `[220, 20, 60]` | `#DC143C` |
-| `2` | **Person** | Pedestrians, standing/walking people | `[0, 200, 0]` | `#00C800` |
-| `3` | **Bike** | Bicycles, motorbikes, cyclists | `[30, 144, 255]` | `#1E90FF` |
-| `4` | **Curve** | Curved lane markers, roadway curves | `[255, 215, 0]` | `#FFD700` |
-| `5` | **Car Stop** | Parking bays, bus stops, designated stopping areas | `[255, 20, 147]` | `#FF1493` |
-| `6` | **Guardrail** | Roadside metal/concrete safety barriers | `[0, 255, 255]` | `#00FFFF` |
-| `7` | **Color Cone** | Traffic pylons, construction cones | `[255, 140, 0]` | `#FF8C00` |
-| `8` | **Bump** | Speed bumps, asphalt speed humps | `[138, 43, 226]` | `#8A2BE2` |
-| `255` | **Ignore Index** | Transition boundaries, void pixels | `[128, 128, 128]` | `#808080` |
+The numbers below reflect verified dataset statistics from `audit_mfnet.py`:
+
+- **Physical Image Files:** 1,606 native PNG files in `images/`.
+- **Training Set (`train.txt`):** 1,568 entries representing **784 unique canonical driving scenes** plus 784 virtual flipped variants (`_flip` suffix).
+- **Validation Set (`val.txt`):** 392 unique canonical scenes.
+- **Test Set (`test.txt`):** 393 unique canonical scenes.
+- **Split Leakage:** **0 canonical filename overlap** across all split combinations ($\text{train} \cap \text{val} = \emptyset$, $\text{train} \cap \text{test} = \emptyset$, $\text{val} \cap \text{test} = \emptyset$).
+
+### 5.2 Semantic Classes & Palette
+
+The dataset defines 9 target urban semantic classes plus an ignore boundary label:
+
+| Class ID | Class Name | Description | RGB Color Code | Hex Swatch | Dataset Pixel Ratio |
+|:---:|:---|:---|:---:|:---:|:---:|
+| `0` | **Unlabeled** | Background terrain, sky, roadway surface | `[0, 0, 0]` | `#000000` | 91.898% |
+| `1` | **Car** | Passenger cars, SUVs, vans, buses, trucks | `[220, 20, 60]` | `#DC143C` | 4.322% |
+| `2` | **Person** | Pedestrians, standing/walking people | `[0, 200, 0]` | `#00C800` | 1.288% |
+| `3` | **Bike** | Bicycles, motorbikes, cyclists | `[30, 144, 255]` | `#1E90FF` | 0.694% |
+| `4` | **Curve** | Curved lane markers, roadway curves | `[255, 215, 0]` | `#FFD700` | 0.628% |
+| `5` | **Car Stop** | Designated parking bays, bus stops | `[255, 20, 147]` | `#FF1493` | 0.519% |
+| `6` | **Guardrail** | Roadside metal/concrete safety barriers | `[0, 255, 255]` | `#00FFFF` | 0.133% |
+| `7` | **Color Cone** | Traffic pylons, construction cones | `[255, 140, 0]` | `#FF8C00` | 0.200% |
+| `8` | **Bump** | Speed breakers, asphalt road bumps | `[138, 43, 226]` | `#8A2BE2` | 0.317% |
+| `255` | **Ignore Index** | Transition boundaries, void pixels | `[128, 128, 128]` | `#808080` | Evaluated as null |
+
+### 5.3 Data Augmentation & Imbalance Handling
+
+- **In-Model Normalization:**
+  - RGB channels: Standard ImageNet mean $\mu = [0.485, 0.456, 0.406]$ and std $\sigma = [0.229, 0.224, 0.225]$.
+  - Thermal channel: Zero-mean scaled ($\mu = [0.5]$, $\sigma = [0.25]$).
+- **Synchronized Geometric Augmentation:** Random horizontal flipping ($p=0.5$) and random scale jitter ($0.9\times–1.1\times$). Images are resampled via bilinear interpolation; label masks are resampled via nearest-neighbor interpolation.
+- **Isolated Photometric Augmentation:** RGB color jitter (brightness, contrast, saturation) is applied strictly to channels 0..2. Thermal intensity receives an independent gain/bias jitter ($\pm 2.5\%$) to preserve physical heat contrast.
+- **Class Imbalance Mitigation:** Background pixels comprise ~91.9% of the dataset. Loss computation uses inverse cube-root frequency weighting (`--class-weights auto`):
+  $$w_c = \frac{1}{\sqrt[3]{N_c}}$$
 
 ---
 
-## 5. Verified Training Configuration
+## 6. Training Methodology & Optimization
 
-The final training run (`resnet18_crossmodal_attention_v2_1_final`) was executed with the following configuration:
+The active checkpoint (`checkpoints/resnet18_crossmodal_attention_v2_1_final/best_checkpoint.pt`) was trained with the following configuration:
 
 - **Optimizer:** AdamW with weight decay $10^{-4}$.
 - **Differential Learning Rates:**
   - Pretrained Encoders: $\eta_{\text{enc}} = 0.1 \times \eta = 3 \times 10^{-5}$
   - CMAF Fusion & Decoder: $\eta_{\text{dec}} = 1.0 \times \eta = 3 \times 10^{-4}$
-- **Batch Size:** 8 per GPU step.
-- **Hardware Precision:** CUDA Automated Mixed Precision (AMP) with single backward pass per step.
-- **Learning Rate Scheduler:** `ReduceLROnPlateau` reducing learning rate by $0.5\times$ upon validation plateau (patience 25, min delta 0.0015).
-- **Loss Formulation:** Multi-Class Soft Dice Loss + Inverse-Cube-Root Class-Weighted Cross-Entropy ($w_c = 1 / \sqrt[3]{N_c}$).
-- **Augmentation Pipeline:**
-  - Synchronized horizontal flipping ($p=0.5$).
-  - Synchronized scale jitter ($0.9\times–1.1\times$) with bilinear image resizing and nearest-neighbor mask resizing.
-  - RGB-exclusive photometric jitter (brightness, contrast, color).
-  - Independent thermal gain/bias jitter.
+- **Batch Size:** 8 samples per GPU step.
+- **Input Dimensions:** Native resolution $480 \times 640$.
+- **Precision:** CUDA Automated Mixed Precision (AMP) with a single loss scaling backward pass per batch.
+- **Scheduler:** `ReduceLROnPlateau` reducing learning rates by $0.5\times$ when validation mIoU fails to improve for 25 epochs ($\text{min\_delta} = 0.0015$).
+- **Objective Function:** Multi-Class Soft Dice Loss + Class-Weighted Cross-Entropy.
+- **Checkpoint Selection:** Highest validation all-class mIoU.
 
 ---
 
-## 6. Evaluation Metrics & Experimental Results
+## 7. Baseline vs. Pretrained ResNet-18 Comparison
 
-> [!NOTE]
-> All reported performance numbers correspond strictly to the **official validation set** ($392$ scenes) with verified zero train/val split leakage. Evaluation was not conducted on the unreleased test set.
+Before developing the ResNet-18 architecture, a baseline custom dual-stream convolutional network was benchmarked on MFNet (`BASELINE_RESULTS.md`):
 
-### Quantitative Comparison: Baseline vs. Pretrained ResNet-18 + CMAF
-
-| Architecture / Experiment | Trainable Params | Best Val Epoch | All-Class Val mIoU | Foreground Val mIoU | Pixel Accuracy | Overfitting Diagnosis |
-|:---|:---:|:---:|:---:|:---:|:---:|:---|
-| **Baseline Scratch ConvNet (v1)** | 2.99M | 34 | `34.56%` (0.3456) | ~23.4% | ~92.1% | Severe: Train mIoU reached 86% while val loss rose above 2.0 |
-| **ResNet-18 + CMAF (Active Checkpoint)** | 29.06M | **22** | **`55.55%` (0.5555)** | **`50.35%` (0.5035)** | **`97.05%`** | **Resolved:** Stable generalization across all foreground classes |
-| *ResNet-18 + CMAF (Training Peak)* | 29.06M | 36 | `55.78%` (0.5578) | `50.60%` (0.5060) | `97.11%` | Peak reached during run progression |
-
-*Experiment Note: The training history (`training_history.json`) recorded a validation mIoU of 0.5578 at epoch 36. However, the preserved local checkpoint at `checkpoints/resnet18_crossmodal_attention_v2_1_final/best_checkpoint.pt` corresponds to epoch 22 (validation mIoU: 0.5555). We report both transparently; the active checkpoint is verified at 0.5555.*
-
-### Class-Wise Validation Performance (Epoch 22 Active Checkpoint)
-
-| Class ID | Class Name | Validation IoU | Validation Dice |
-|:---:|:---|:---:|:---:|
-| `0` | **Unlabeled** | **97.17%** | 98.56% |
-| `1` | **Car** | **77.14%** | 87.09% |
-| `2` | **Person** | **68.23%** | 81.11% |
-| `3` | **Bike** | **69.08%** | 81.71% |
-| `4` | **Curve** | **32.00%** | 48.48% |
-| `5` | **Car Stop** | **36.58%** | 53.56% |
-| `6` | **Guardrail** | **27.39%** | 43.01% |
-| `7` | **Color Cone** | **52.85%** | 69.15% |
-| `8` | **Bump** | **39.53%** | 56.66% |
-| **Mean** | **All Classes (0–8)** | **`55.55%`** | **`68.82%`** |
-| **Mean** | **Foreground Classes (1–8)** | **`50.35%`** | **`65.10%`** |
+| Evaluation Metric | Baseline ConvNet (v1 Scratch) | ResNet-18 + CMAF (Active Model) | Relative Improvement |
+|:---|:---:|:---:|:---:|
+| **Encoder Weights** | Random Initialization (from scratch) | ImageNet Pretrained ResNet-18 | Transfer Learning |
+| **Trainable Parameters** | 2,997,071 (3.0M) | 29,055,739 (29.06M) | $+869\%$ capacity |
+| **Best Epoch** | Epoch 34 | Epoch 22 | Earlier convergence |
+| **Validation mIoU (All Classes)** | **`34.56%`** (0.3456) | **`55.55%`** (0.5555) | **$+20.99\%$ mIoU** |
+| **Validation Foreground mIoU** | ~23.4% | **`50.35%`** (0.5035) | **$+26.95\%$ mIoU** |
+| **Validation Pixel Accuracy** | ~92.1% | **`97.05%`** (0.9705) | $+4.95\%$ accuracy |
+| **Validation Loss** | $> 2.0$ (diverged at epoch 50) | **`1.1749`** (stable) | Generalization restored |
+| **Generalization Diagnosis** | Severe overfitting (train mIoU $\approx 86\%$) | Stable generalization across splits | Overfitting resolved |
 
 ---
 
-## 7. Representative Training Plots & Visualizations
+## 8. Experimental Results & Evaluation
 
-All referenced visualization artifacts are generated directly by the training engine and stored under `plots/resnet18_crossmodal_attention_v2_1_final/`:
+> [!IMPORTANT]
+> All quantitative metrics reported below are computed strictly on the **MFNet validation split (392 scenes)** with verified zero data leakage. Evaluation was not conducted on the unreleased test split.
 
-### Training & Validation Loss Curves
-![Loss Curve](plots/resnet18_crossmodal_attention_v2_1_final/epoch_loss.png)
+### 8.1 Class-Wise Performance
 
-### Validation mIoU (All Classes vs Foreground)
-| All-Class mIoU Evolution | Foreground mIoU Evolution |
+Quantitative performance of the active checkpoint (`epoch = 22`) across all semantic classes:
+
+| Class ID | Class Name | Validation IoU | Validation Dice Score | Performance Assessment |
+|:---:|:---|:---:|:---:|:---|
+| `0` | **Unlabeled** | **97.17%** | 98.56% | Consistent background delineation |
+| `1` | **Car** | **77.14%** | 87.09% | Strong boundary segmentation in day & night |
+| `2` | **Person** | **68.23%** | 81.11% | Thermal radiation aids pedestrian detection |
+| `3` | **Bike** | **69.08%** | 81.71% | Sharp separation of thin frames and riders |
+| `4` | **Curve** | **32.00%** | 48.48% | Road markings benefit primarily from RGB |
+| `5` | **Car Stop** | **36.58%** | 53.56% | Low sample frequency |
+| `6` | **Guardrail** | **27.39%** | 43.01% | Rare class (0.13% of dataset pixels) |
+| `7` | **Color Cone** | **52.85%** | 69.15% | High optical color contrast |
+| `8` | **Bump** | **39.53%** | 56.66% | Subtle spatial geometry |
+| **Mean** | **All Classes (0–8)** | **`55.55%`** | **`68.82%`** | **Comprehensive benchmark** |
+| **Mean** | **Foreground Classes (1–8)** | **`50.35%`** | **`65.10%`** | **Excludes background class** |
+
+### 8.2 Checkpoint & Metric Verification
+
+Inspection of `plots/resnet18_crossmodal_attention_v2_1_final/training_history.json` and `best_checkpoint.pt` confirms:
+- **Active Checkpoint File:** `checkpoints/resnet18_crossmodal_attention_v2_1_final/best_checkpoint.pt`
+- **Recorded Checkpoint Epoch:** Epoch 22
+- **Checkpoint Validation mIoU:** `0.555502` ($55.55\%$)
+- **Checkpoint Validation Loss:** `1.174930`
+- **Training Peak in History:** Epoch 36 recorded validation mIoU of `0.557849` ($55.78\%$). However, the active checkpoint retained at the canonical path is Epoch 22 ($55.55\%$). Both values are documented transparently here.
+
+---
+
+## 9. Visualizations & Training Plots
+
+All plots below are generated by the training pipeline and verified to exist under `plots/resnet18_crossmodal_attention_v2_1_final/`:
+
+### Training & Validation Loss
+![Epoch Loss](plots/resnet18_crossmodal_attention_v2_1_final/epoch_loss.png)
+
+### Validation mIoU Progression
+| All-Class mIoU (Classes 0–8) | Foreground mIoU (Classes 1–8) |
 |:---:|:---:|
 | ![All-Class mIoU](plots/resnet18_crossmodal_attention_v2_1_final/miou_all_classes.png) | ![Foreground mIoU](plots/resnet18_crossmodal_attention_v2_1_final/miou_foreground.png) |
 
 ### Class-Wise IoU Distribution & Pixel Accuracy
-| Per-Class IoU Distribution | Pixel Accuracy Progression |
+| Per-Class IoU at Best Epoch | Validation Pixel Accuracy |
 |:---:|:---:|
 | ![Per Class IoU](plots/resnet18_crossmodal_attention_v2_1_final/per_class_iou.png) | ![Pixel Accuracy](plots/resnet18_crossmodal_attention_v2_1_final/pixel_accuracy.png) |
 
@@ -226,7 +353,43 @@ All referenced visualization artifacts are generated directly by the training en
 
 ---
 
-## 8. Installation & Environment Setup
+## 10. Repository Structure
+
+```
+RGB-Thermal-Semantic-Segmentation/
+├── .streamlit/
+│   └── config.toml                  # Streamlit server config & UI branding
+├── checkpoints/
+│   └── resnet18_crossmodal_attention_v2_1_final/
+│       └── best_checkpoint.pt       # Active model checkpoint (~349 MB, Git LFS)
+├── demo_samples/
+│   ├── day_00001D_rgb.png           # Daytime sample RGB image
+│   ├── day_00001D_thermal.png       # Daytime sample Thermal image
+│   ├── night_00003N_rgb.png         # Nighttime sample RGB image
+│   └── night_00003N_thermal.png     # Nighttime sample Thermal image
+├── plots/
+│   ├── resnet18_crossmodal_attention_v2_1/        # Historical smoke run plots
+│   └── resnet18_crossmodal_attention_v2_1_final/  # Active run plots & JSON metrics
+├── .gitattributes                   # Git LFS pointer rules for *.pt and *.pth
+├── .gitignore                       # Ignored patterns, caches, and local secrets
+├── app.py                           # Production Streamlit inference application
+├── audit_mfnet.py                   # Read-only dataset sanity & leakage audit
+├── AUDIT_REPORT.md                  # Comprehensive engineering audit notes
+├── BASELINE_RESULTS.md              # Documentation of baseline v1 scratch model
+├── CHANGELOG.md                     # Engineering changelog
+├── cmds.md                          # Quick CLI reference
+├── dataset.py                       # MFNet dataset loader with synchronized augmentations
+├── download_dataset.py              # Kaggle dataset download helper
+├── my_model.py                      # Pretrained Dual-Stream ResNet-18 + CMAF definition
+├── requirements.txt                 # Application and deployment dependencies
+├── test_app.py                      # Unit and integration test suite
+├── train.py                         # Full training, validation, and evaluation pipeline
+└── README.md                        # Project documentation and deployment guide
+```
+
+---
+
+## 11. Installation & Environment Setup
 
 ### 1. Clone the Repository
 ```bash
@@ -234,7 +397,7 @@ git clone https://github.com/atulkumar-ds/RGB-Thermal-Semantic-Segmentation.git
 cd RGB-Thermal-Semantic-Segmentation
 ```
 
-### 2. Set Up a Virtual Environment
+### 2. Configure Virtual Environment
 ```bash
 # On Linux / macOS:
 python3 -m venv .venv
@@ -247,151 +410,175 @@ python -m venv .venv
 
 ### 3. Install Dependencies
 
-#### For Local CPU Inference or Cloud Deployment:
+#### For Local CPU Inference / Cloud Deployment:
 ```bash
 pip install -r requirements.txt
 ```
 
-#### For Local NVIDIA GPU Training / CUDA Acceleration:
+#### For Local NVIDIA GPU Training (CUDA):
 Install a CUDA-compatible PyTorch build first, then install the remaining requirements:
 ```bash
-# Example for CUDA 12.8 / 12.6 wheels:
+# Example for CUDA 12.8 / 12.6:
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 pip install -r requirements.txt
 ```
 
 ---
 
-## 9. Running the Streamlit App Locally
+## 12. Dataset Setup & Pre-Training Audit
 
-To launch the interactive multi-spectral inference application:
+### 1. Download MFNet Dataset
+Download the MFNet dataset using the included Kaggle utility:
+```bash
+python download_dataset.py --output-dir ../MFNet_dataset
+```
+
+Alternatively, download manually from [Kaggle: danialqashqai/mfnet-dataset](https://www.kaggle.com/datasets/danialqashqai/mfnet-dataset) and unpack to `../MFNet_dataset`.
+
+### 2. Verify Dataset Integrity
+Execute the read-only audit script to verify split separation, label formats, and channel alignment:
+```bash
+python audit_mfnet.py --data-root ../MFNet_dataset --image-check-limit 0
+```
+
+---
+
+## 13. Training & Reproduction Commands
+
+### Quick 1-Epoch Integration Smoke Test
+```bash
+python train.py --epochs 1 --batch-size 4 --num-workers 4 --log-every 20 --vis-every 1
+```
+
+### Full Training Run (Reproducing Active Experiment)
+```bash
+python train.py \
+  --epochs 100 \
+  --batch-size 8 \
+  --lr 3e-4 \
+  --patience 25 \
+  --min-delta 0.0015 \
+  --class-weights auto \
+  --checkpoint-dir checkpoints/resnet18_crossmodal_attention_v2_1_final \
+  --plot-dir plots/resnet18_crossmodal_attention_v2_1_final
+```
+
+### Resume Training from Checkpoint
+```bash
+python train.py \
+  --resume checkpoints/resnet18_crossmodal_attention_v2_1_final/last_checkpoint.pt \
+  --epochs 100
+```
+
+---
+
+## 14. Local Streamlit App Execution
+
+To launch the interactive multi-spectral application locally:
 
 ```bash
 streamlit run app.py
 ```
 
-The application will start at `http://localhost:8501`.
+The app will open automatically at `http://localhost:8501`.
 
-### Local App Features:
-- **Interactive Demo Modes:** Test instantly using preloaded daytime and nighttime validation scenes (`demo_samples/`).
-- **Paired File Uploads:** Upload independent RGB and Thermal images. The app verifies dimension alignment automatically.
-- **MFNet RGBA Support:** Upload native 4-channel PNG images where thermal data is stored in the alpha channel.
-- **Configurable Visualizer:** Interactive alpha slider for mask overlay and multiple false-color palettes for infrared viewing.
-- **Class Analytics:** Automatic pixel count and percentage breakdown for each detected class.
-- **Mask Download:** Export predictions as high-resolution PNG masks or blended overlays.
+### Local Execution Features
+- Uses local GPU via CUDA if available; otherwise defaults to CPU.
+- Automatically loads `checkpoints/resnet18_crossmodal_attention_v2_1_final/best_checkpoint.pt`.
+- Includes daytime and nighttime sample pairs for immediate verification.
 
 ---
 
-## 10. Streamlit Community Cloud Deployment
+## 15. Checkpoint & Git LFS Handling
 
-Follow these steps to deploy the application on **Streamlit Community Cloud**:
-
-### Step 1: Push Repository to GitHub
-Ensure your latest code is pushed to your GitHub repository:
-```bash
-git add .
-git commit -m "Prepare for Streamlit Community Cloud deployment"
-git push origin main
+The active checkpoint (`best_checkpoint.pt`, ~349 MB) contains both `model_state_dict` and optimizer states. It is tracked using Git LFS via `.gitattributes`:
+```
+*.pt filter=lfs diff=lfs merge=lfs -text
+*.pth filter=lfs diff=lfs merge=lfs -text
 ```
 
-### Step 2: Deploy on Streamlit Cloud
-1. Sign in to [share.streamlit.io](https://share.streamlit.io).
-2. Click **New App**.
-3. Select your repository: `atulkumar-ds/RGB-Thermal-Semantic-Segmentation`.
-4. Branch: `main`.
-5. Main file path: `app.py`.
-
-### Step 3: Checkpoint & Git LFS Configuration
-The model checkpoint (`best_checkpoint.pt`) is **~349 MB** and is tracked with Git LFS. Because cloud git clones on free tiers typically download only the 130-byte Git LFS pointer file, the application incorporates an automated remote retrieval mechanism:
-
-1. Upload `best_checkpoint.pt` to a public download host (e.g., a **GitHub Release Asset**, **Hugging Face Model Hub**, or **AWS S3** bucket).
-2. In the Streamlit Cloud management dashboard, click **App Settings > Secrets**.
-3. Add the download URL as a secret:
-   ```toml
-   CHECKPOINT_URL = "https://your-public-download-host.com/best_checkpoint.pt"
-   ```
-4. When the app boots on Streamlit Cloud, it detects the LFS pointer, automatically downloads the real weights to the local checkpoint directory with a progress bar, and caches the model via `@st.cache_resource`.
-
----
-
-## 11. Checkpoint & Git LFS Handling
-
-The active checkpoint is stored at:
-```
-checkpoints/resnet18_crossmodal_attention_v2_1_final/best_checkpoint.pt
-```
-
-### How LFS Pointers are Handled
-In `app.py`, the function `inspect_checkpoint_file()` examines the file header and size before attempting to load weights:
-- If the file is smaller than 1 MB and starts with `version https://git-lfs.github.com/spec/v1`, it is flagged as a Git LFS pointer.
-- The application halts cleanly, explains why the weights are not present, and offers both automated secret-based downloading and manual URL entry.
-- This prevents cryptic `UnpicklingError` or corrupted weight crashes.
-
-To pull the binary weights locally using Git LFS:
+### Pulling Checkpoint Weights Locally
+If cloning on a machine with Git LFS installed:
 ```bash
 git lfs install
 git lfs pull
 ```
 
----
-
-## 12. Input Image Requirements & Preprocessing
-
-When uploading custom images for inference:
-- **Spatial Alignment:** RGB and Thermal images must depict the **exact same physical scene from the same camera pose**. Spatial mismatches will produce misaligned predictions.
-- **Resolution:** Any resolution is accepted. The application automatically resizes inputs to $480 \times 640$ using bilinear interpolation for inference, then restores the predicted mask to the upload resolution via **nearest-neighbor interpolation** to avoid introducing artificial class IDs.
-- **Thermal Encoding:**
-  - For separate uploads: Grayscale PNG/JPG with pixel values 0–255.
-  - For single MFNet RGBA uploads: 4-channel PNG where channel 3 (Alpha) represents thermal intensity.
-
----
-
-## 13. Limitations & Known Issues
-
-- **CPU Inference Latency:** On standard Streamlit Cloud CPU instances, forward pass latency ranges between **0.6s and 1.5s per image**. For high-throughput real-time deployment (e.g., $\ge 30\,\text{FPS}$ on robotics platforms), hardware acceleration (NVIDIA TensorRT / FP16) is recommended.
-- **Class Imbalance:** Rare classes such as *Guardrail* ($27.39\%$ IoU) and *Curve* ($32.00\%$ IoU) have significantly fewer training pixels than *Car* ($77.14\%$) or *Person* ($68.23\%$).
-- **Parallax Artifacts:** If RGB and thermal sensors are not optically aligned via a beam splitter or calibrated stereo rectification, boundary parallax may cause slight edge bleeding.
-
----
-
-## 14. Repository Structure
-
+### Identifying an LFS Pointer vs. Real Weights
+A Git LFS pointer is a ~130-byte text file that begins with:
 ```
-RGB-Thermal-Semantic-Segmentation/
-├── .streamlit/
-│   └── config.toml                  # Streamlit theme and server configuration
-├── checkpoints/
-│   └── resnet18_crossmodal_attention_v2_1_final/
-│       └── best_checkpoint.pt       # Active model checkpoint (~349 MB, Git LFS)
-├── demo_samples/
-│   ├── day_00001D_rgb.png           # Sample daytime RGB image
-│   ├── day_00001D_thermal.png       # Sample daytime thermal image
-│   ├── night_00003N_rgb.png         # Sample nighttime RGB image
-│   └── night_00003N_thermal.png     # Sample nighttime thermal image
-├── plots/
-│   ├── resnet18_crossmodal_attention_v2_1/        # Historical experiment plots
-│   └── resnet18_crossmodal_attention_v2_1_final/  # Active run plots and JSON metrics
-├── .gitattributes                   # Git LFS tracking rules
-├── .gitignore                       # Git ignore rules (protecting secrets and caches)
-├── app.py                           # Streamlit interactive inference application
-├── audit_mfnet.py                   # Read-only dataset sanity and leakage audit script
-├── AUDIT_REPORT.md                  # Comprehensive engineering audit report
-├── BASELINE_RESULTS.md              # Quantitative documentation of initial v1 baseline
-├── CHANGELOG.md                     # Revision log detailing v1 -> v2.1 improvements
-├── cmds.md                          # Command-line cheat sheet
-├── dataset.py                       # MFNet dataset loader with synchronized augmentations
-├── download_dataset.py              # Kaggle dataset download utility
-├── my_model.py                      # Pretrained Dual-Stream ResNet-18 + CMAF definition
-├── requirements.txt                 # Application and inference dependencies
-├── test_app.py                      # Focused test suite for app and inference pipeline
-├── train.py                         # Full training, validation, and evaluation pipeline
-└── README.md                        # Project documentation and deployment guide
+version https://git-lfs.github.com/spec/v1
+oid sha256:70f4adcb1349d31c5ec07dad0c3d507899222383b67ffbcd83376f094f104b55
+size 349118757
+```
+`app.py` automatically inspects the file header and size before loading. If an LFS pointer is detected, the application halts cleanly and provides actionable instructions instead of crashing with an `UnpicklingError`.
+
+---
+
+## 16. Streamlit Community Cloud Deployment Guide
+
+When deploying to **Streamlit Community Cloud**, free GitHub clones do not pull large Git LFS binary files. The application solves this using a secure remote retrieval workflow:
+
+### Step 1: Host Checkpoint Weights
+Upload `best_checkpoint.pt` (~349 MB) to a public download host:
+- A **GitHub Release Asset** on your repository (recommended).
+- A **Hugging Face Model Hub** repository.
+- A public **AWS S3** or **Google Cloud Storage** object.
+
+### Step 2: Deploy on Streamlit Cloud
+1. Navigate to [share.streamlit.io](https://share.streamlit.io).
+2. Select your repository: `atulkumar-ds/RGB-Thermal-Semantic-Segmentation`.
+3. Select branch: `main`.
+4. Main file path: `app.py`.
+
+### Step 3: Configure Remote Secret
+In the Streamlit Cloud management console, open **App Settings > Secrets**, and add:
+```toml
+CHECKPOINT_URL = "https://github.com/atulkumar-ds/RGB-Thermal-Semantic-Segmentation/releases/download/v2.1/best_checkpoint.pt"
+```
+*(Replace with your actual public download URL).*
+
+On first boot, `app.py` detects that the checkpoint is missing or an LFS pointer, downloads the weights to the local directory with a live progress bar, and caches the model via `@st.cache_resource`.
+
+---
+
+## 17. Verification & Testing Suite
+
+The repository includes a dedicated test suite (`test_app.py`) verifying core inference components:
+
+```bash
+python test_app.py
 ```
 
+### Verified Test Cases & Observed Outcomes:
+1. `test_inspect_checkpoint_real`: Confirmed that `best_checkpoint.pt` is recognized as a valid binary file (>300 MB) rather than an LFS pointer. (**PASSED**)
+2. `test_inspect_checkpoint_missing`: Confirmed that non-existent paths are reported cleanly without throwing unhandled exceptions. (**PASSED**)
+3. `test_inspect_checkpoint_lfs_pointer`: Confirmed that synthetic Git LFS pointer files are correctly identified. (**PASSED**)
+4. `test_preprocess_pair_dimensions_and_scaling`: Confirmed that arbitrary input resolutions are resized to $(480, 640)$, scaled to $[0.0, 1.0]$, and correctly placed into RGB channels 0:3 and Thermal channel 3. (**PASSED**)
+5. `test_model_loading_and_inference`: Confirmed strict state dictionary loading (all 345 parameter keys match), forward inference, nearest-neighbor mask restoration, and colorization. (**PASSED**)
+
+*All 5 unit tests passed in 2.47s on CPU.*
+
 ---
 
-## 15. References & Acknowledgements
+## 18. Limitations & Future Directions
 
-- **MFNet Benchmark:** Q. Ha, K. Watanabe, T. Karasawa, and Y. Ushiku, *"MFNet: Towards Real-Time Semantic Segmentation for Autonomous Vehicles with Multi-Spectral Scenes,"* 2017 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS).
-- **MFNet Dataset Hosting:** Danial Qashqai via Kaggle (`danialqashqai/mfnet-dataset`).
-- **ResNet Architecture:** K. He, X. Zhang, S. Ren, and J. Sun, *"Deep Residual Learning for Image Recognition,"* CVPR 2016.
+- **Inference Latency on CPU:** On standard cloud CPU instances, single-image forward inference requires **0.6s to 1.5s**. Edge robotic platforms (such as NVIDIA Jetson Orin) should export the model to TensorRT with FP16 quantization for $\ge 30\,\text{FPS}$ real-time execution.
+- **Underrepresented Classes:** Classes with limited pixel representations in the training set (e.g., *Guardrail* at $0.13\%$ and *Color Cone* at $0.20\%$) exhibit lower IoU scores ($27.39\%$ and $52.85\%$) compared to common classes such as *Car* ($77.14\%$) and *Person* ($68.23\%$).
+- **Parallax Considerations:** If RGB and thermal sensors are not optically aligned via a beam splitter or calibrated stereo rectification, physical boundary parallax can cause edge bleeding.
+- **Future Improvements:** Exploring cross-attention Transformer backbones (e.g., SegFormer / MiT encoders) and knowledge distillation to further compress the 29M parameter dual-stream model for low-power edge compute.
+
+---
+
+## 19. References & Acknowledgements
+
+1. **MFNet Benchmark:** Q. Ha, K. Watanabe, T. Karasawa, and Y. Ushiku, *"MFNet: Towards Real-Time Semantic Segmentation for Autonomous Vehicles with Multi-Spectral Scenes,"* 2017 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS).
+2. **MFNet Dataset Hosting:** Danial Qashqai via Kaggle (`danialqashqai/mfnet-dataset`).
+3. **ResNet Architecture:** K. He, X. Zhang, S. Ren, and J. Sun, *"Deep Residual Learning for Image Recognition,"* CVPR 2016.
+4. **Squeeze-and-Excitation Networks:** J. Hu, L. Shen, and G. Sun, *"Squeeze-and-Excitation Networks,"* CVPR 2018.
+
+---
+
+## 20. License
+
+This project is licensed under the [MIT License](LICENSE) — see the LICENSE file for details.
